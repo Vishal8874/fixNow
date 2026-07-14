@@ -10,11 +10,10 @@ class ServiceCategory extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $fillable = [
-        'name',
-        'slug',
-        'icon',
-        'description',
-        'status',
-    ];
+    protected $fillable = ['name', 'slug', 'icon', 'description', 'status'];
+
+    public function providerServices()
+    {
+        return $this->hasMany(ProviderService::class);
+    }
 }

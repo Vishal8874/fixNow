@@ -9,17 +9,15 @@ class ProviderProfile extends Model
 {
     use HasFactory;
 
-    protected $fillable = [
-        'user_id',
-        'about',
-        'experience',
-        'profile_image',
-        'is_available',
-        'average_rating',
-    ];
+    protected $fillable = ['user_id', 'about', 'experience', 'profile_image', 'is_available', 'average_rating'];
 
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function services()
+    {
+        return $this->hasMany(ProviderService::class);
     }
 }

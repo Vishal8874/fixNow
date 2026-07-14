@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\Auth\AuthController;
 use App\Http\Controllers\API\Provider\ProviderController;
+use App\Http\Controllers\API\Provider\ProviderServiceController;
 use App\Http\Controllers\API\Admin\ServiceCategoryController;
 
 Route::prefix('v1')->group(function () {
@@ -23,12 +24,13 @@ Route::prefix('v1')->group(function () {
     });
 
     //Providers Route
-    Route::middleware('auth:sanctum')
+    Route::middleware(['auth:sanctum', 'role:provider'])
         ->prefix('provider')
         ->group(function () {
             Route::post('/profile', [ProviderController::class, 'storeProfile']);
             Route::put('/profile', [ProviderController::class, 'updateProfile']);
             Route::get('/profile', [ProviderController::class, 'showProfile']);
+            Route::apiResource('services', ProviderServiceController::class);
         });
 
     //Admin Routes
