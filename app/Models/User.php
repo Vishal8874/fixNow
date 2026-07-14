@@ -6,6 +6,7 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Models\ProviderProfile;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -45,5 +46,10 @@ class User extends Authenticatable
             'role' => UserRole::class,
             'status' => UserStatus::class,
         ];
+    }
+
+    public function providerProfile()
+    {
+        return $this->hasOne(ProviderProfile::class);
     }
 }

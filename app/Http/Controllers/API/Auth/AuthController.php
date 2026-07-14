@@ -7,6 +7,7 @@ use App\Enums\UserStatus;
 use App\Http\Controllers\API\BaseApiController;
 use App\Http\Requests\RegisterRequest;
 use App\Http\Requests\LoginRequest;
+use App\Http\Requests\ProviderRegisterRequest;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
@@ -120,5 +121,28 @@ class AuthController extends BaseApiController
         } catch (\Exception $e) {
             return $this->errorResponse('Google authentication failed.', $e->getMessage(), 500);
         }
+    }
+
+    public function providerRegister(ProviderRegisterRequest $request)
+    {
+        $provider = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            'password' => $request->password,
+            'role' => UserRole::PROVIDER,
+            'status' => UserStatus::PENDING,
+        ]);
+
+        $token = $provider->createToken('auth_token')->plainTextToken;
+
+        return $this->successResponse(
+            [
+                'user' => $provider,
+                'token' => $token,
+            ],
+            'Provider registered successfully. Your account is pending admin approval.',
+            201,
+        );
     }
 }
