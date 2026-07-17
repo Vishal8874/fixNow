@@ -4,7 +4,12 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\Auth\AuthController;
 use App\Http\Controllers\API\Provider\ProviderController;
 use App\Http\Controllers\API\Provider\ProviderServiceController;
+use App\Http\Controllers\API\Provider\ProviderServiceAreaController;
 use App\Http\Controllers\API\Admin\ServiceCategoryController;
+use App\Http\Controllers\API\Customer\BookingController;
+use App\Http\Controllers\API\Customer\CategoryController;
+use App\Http\Controllers\API\Customer\CustomerProviderController;
+use App\Http\Controllers\API\Provider\ProviderBookingController;
 
 Route::prefix('v1')->group(function () {
     Route::prefix('auth')->group(function () {
@@ -23,6 +28,10 @@ Route::prefix('v1')->group(function () {
         });
     });
 
+    // Public Customer Routes
+    Route::get('/categories', [CategoryController::class, 'index']);
+    Route::get('/providers', [CustomerProviderController::class, 'index']);
+
     //Providers Route
     Route::middleware(['auth:sanctum', 'role:provider'])
         ->prefix('provider')
@@ -31,6 +40,16 @@ Route::prefix('v1')->group(function () {
             Route::put('/profile', [ProviderController::class, 'updateProfile']);
             Route::get('/profile', [ProviderController::class, 'showProfile']);
             Route::apiResource('services', ProviderServiceController::class);
+            Route::apiResource('service-areas', ProviderServiceAreaController::class)->parameters([
+                'service-areas' => 'serviceArea',
+            ]);
+            Route::prefix('bookings')->group(function () {
+                Route::get('/', [ProviderBookingController::class, 'index']);
+                Route::get('/{booking}', [ProviderBookingController::class, 'show']);
+                Route::patch('/{booking}/accept', [ProviderBookingController::class, 'accept']);
+                Route::patch('/{booking}/reject', [ProviderBookingController::class, 'reject']);
+                Route::patch('/{booking}/complete', [ProviderBookingController::class, 'complete']);
+            });
         });
 
     //Admin Routes
@@ -38,5 +57,12 @@ Route::prefix('v1')->group(function () {
         ->prefix('admin')
         ->group(function () {
             Route::apiResource('categories', ServiceCategoryController::class);
+        });
+
+    //Customer Routes
+    Route::middleware(['auth:sanctum', 'role:customer'])
+        ->prefix('customer')
+        ->group(function () {
+            Route::apiResource('bookings', BookingController::class)->only(['index', 'store', 'show', 'destroy']);
         });
 });
