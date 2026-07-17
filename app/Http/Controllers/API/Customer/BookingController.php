@@ -2,48 +2,40 @@
 
 namespace App\Http\Controllers\API\Customer;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Controllers\API\BaseApiController;
+use App\Http\Requests\StoreBookingRequest;
+use App\Services\BookingService;
+use App\Models\Booking;
 
-class BookingController extends Controller
+class BookingController extends BaseApiController
 {
-    /**
-     * Display a listing of the resource.
-     */
+    public function __construct(protected BookingService $bookingService) {}
+
     public function index()
     {
-        //
+        $bookings = $this->bookingService->getCustomerBookings(auth()->id());
+
+        return $this->successResponse($bookings, 'Bookings fetched successfully.');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function store(StoreBookingRequest $request)
     {
-        //
+        $booking = $this->bookingService->create(auth()->user(), $request->validated());
+
+        return $this->successResponse($booking, 'Booking created successfully.', 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function show(Booking $booking)
     {
-        //
+        $booking = $this->bookingService->getBookingDetails(auth()->id(), $booking);
+
+        return $this->successResponse($booking, 'Booking details fetched successfully.');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
+    // public function destroy(Booking $booking)
+    // {
+    //     $booking = $this->bookingService->cancelBooking(auth()->id(), $booking);
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
-    }
+    //     return $this->successResponse($booking, 'Booking cancelled successfully.');
+    // }
 }

@@ -52,4 +52,9 @@ class User extends Authenticatable
     {
         return $this->hasOne(ProviderProfile::class);
     }
+
+    public function bookings()
+    {
+        return $this->hasMany(Booking::class, 'customer_id');
+    }
 }

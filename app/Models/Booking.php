@@ -10,28 +10,11 @@ class Booking extends Model
 {
     use HasFactory;
 
-    protected $fillable = [
-        'booking_number',
-        'customer_id',
-        'provider_profile_id',
-        'provider_service_id',
-        'service_area_id',
-        'scheduled_at',
-        'customer_name',
-        'customer_phone',
-        'customer_address',
-        'customer_city',
-        'customer_state',
-        'customer_pincode',
-        'problem_description',
-        'estimated_price',
-        'final_price',
-        'status',
-        'cancel_reason',
-    ];
+    protected $fillable = ['booking_number', 'customer_id', 'provider_profile_id', 'provider_service_id', 'service_area_id', 'scheduled_at', 'customer_name', 'customer_email', 'customer_phone', 'customer_address', 'customer_city', 'customer_state', 'customer_pincode', 'issue_description', 'estimated_price', 'final_price', 'status', 'cancel_reason', 'completed_at'];
 
     protected $casts = [
         'scheduled_at' => 'datetime',
+        'completed_at' => 'datetime',
         'status' => BookingStatus::class,
     ];
 

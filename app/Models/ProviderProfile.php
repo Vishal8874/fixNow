@@ -25,4 +25,8 @@ class ProviderProfile extends Model
     {
         return $this->hasMany(ProviderServiceArea::class);
     }
+    public function bookings()
+    {
+        return $this->hasMany(Booking::class);
+    }
 }

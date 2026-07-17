@@ -9,12 +9,7 @@ class ProviderService extends Model
 {
     use HasFactory;
 
-    protected $fillable = [
-        'provider_profile_id',
-        'service_category_id',
-        'base_price',
-        'is_available',
-    ];
+    protected $fillable = ['provider_profile_id', 'service_category_id', 'base_price', 'is_available'];
 
     public function providerProfile()
     {
@@ -24,5 +19,9 @@ class ProviderService extends Model
     public function category()
     {
         return $this->belongsTo(ServiceCategory::class, 'service_category_id');
+    }
+    public function bookings()
+    {
+        return $this->hasMany(Booking::class);
     }
 }
