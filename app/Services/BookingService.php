@@ -132,6 +132,86 @@ class BookingService
     //     return $booking;
     // }
 
+    //Povider services
+    public function getProviderBookings(User $provider)
+    {
+        return Booking::with(['customer', 'providerService.category', 'serviceArea'])
+            ->where('provider_profile_id', $provider->providerProfile->id)
+            ->latest()
+            ->paginate(10);
+    }
 
-    
+    public function getProviderBookingDetails(User $provider, Booking $booking): Booking
+    {
+        if ($booking->provider_profile_id != $provider->providerProfile->id) {
+            throw ValidationException::withMessages([
+                'booking' => ['Booking not found.'],
+            ]);
+        }
+
+        return $booking->load(['customer', 'providerService.category', 'serviceArea']);
+    }
+
+    private function ensureProviderOwnsBooking(User $provider, Booking $booking): void
+    {
+        if (!$provider->providerProfile || $booking->provider_profile_id != $provider->providerProfile->id) {
+            throw ValidationException::withMessages([
+                'booking' => ['Booking not found.'],
+            ]);
+        }
+    }
+
+    public function acceptBooking(User $provider, Booking $booking): Booking
+    {
+        $this->ensureProviderOwnsBooking($provider, $booking);
+
+        if ($booking->status !== BookingStatus::PENDING) {
+            throw ValidationException::withMessages([
+                'booking' => ['Only pending bookings can be accepted.'],
+            ]);
+        }
+
+        $booking->update([
+            'status' => BookingStatus::ACCEPTED,
+        ]);
+
+        return $booking->fresh(['customer', 'providerService.category', 'serviceArea']);
+    }
+
+    public function rejectBooking(User $provider, Booking $booking, array $data): Booking
+    {
+        $this->ensureProviderOwnsBooking($provider, $booking);
+
+        if ($booking->status !== BookingStatus::PENDING) {
+            throw ValidationException::withMessages([
+                'booking' => ['Only pending bookings can be rejected.'],
+            ]);
+        }
+
+        $booking->update([
+            'status' => BookingStatus::REJECTED,
+            'reject_reason' => $data['reject_reason'],
+        ]);
+
+        return $booking->fresh(['customer', 'providerService.category', 'serviceArea']);
+    }
+
+    public function completeBooking(User $provider, Booking $booking, array $data): Booking
+    {
+        $this->ensureProviderOwnsBooking($provider, $booking);
+
+        if ($booking->status !== BookingStatus::ACCEPTED) {
+            throw ValidationException::withMessages([
+                'booking' => ['Only accepted bookings can be completed.'],
+            ]);
+        }
+
+        $booking->update([
+            'status' => BookingStatus::COMPLETED,
+            'final_price' => $data['final_price'],
+            'completed_at' => now(),
+        ]);
+
+        return $booking->fresh(['customer', 'providerService.category', 'serviceArea']);
+    }
 }

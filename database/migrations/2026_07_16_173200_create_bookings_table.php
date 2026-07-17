@@ -64,6 +64,9 @@ return new class extends Migration
             // Cancellation Reason
             $table->string('cancel_reason', 255)->nullable();
 
+            //Rejection Reason
+            $table->string('reject_reason', 255)->nullable();
+
             $table->timestamps();
             $table->softDeletes();
 
