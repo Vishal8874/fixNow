@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\API\Admin\ProviderManagementController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\Auth\AuthController;
 use App\Http\Controllers\API\Provider\ProviderController;
@@ -9,7 +10,9 @@ use App\Http\Controllers\API\Admin\ServiceCategoryController;
 use App\Http\Controllers\API\Customer\BookingController;
 use App\Http\Controllers\API\Customer\CategoryController;
 use App\Http\Controllers\API\Customer\CustomerProviderController;
+use App\Http\Controllers\API\Customer\ReviewController;
 use App\Http\Controllers\API\Provider\ProviderBookingController;
+use App\Http\Controllers\API\Public\ProviderReviewController;
 
 Route::prefix('v1')->group(function () {
     Route::prefix('auth')->group(function () {
@@ -31,6 +34,7 @@ Route::prefix('v1')->group(function () {
     // Public Customer Routes
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/providers', [CustomerProviderController::class, 'index']);
+    Route::get('providers/{provider}/reviews', [ProviderReviewController::class, 'index']);
 
     //Providers Route
     Route::middleware(['auth:sanctum', 'role:provider'])
@@ -57,12 +61,23 @@ Route::prefix('v1')->group(function () {
         ->prefix('admin')
         ->group(function () {
             Route::apiResource('categories', ServiceCategoryController::class);
+            Route::get('/providers', [ProviderManagementController::class, 'index']);
+            Route::get('/providers/{provider}', [ProviderManagementController::class, 'show']);
+            Route::patch('/providers/{provider}/approve', [ProviderManagementController::class, 'approve']);
+            Route::patch('/providers/{provider}/reject', [ProviderManagementController::class, 'reject']);
+            Route::patch('/providers/{provider}/block', [ProviderManagementController::class, 'block']);
+            Route::patch('/providers/{provider}/unblock', [ProviderManagementController::class, 'unblock']);
         });
 
     //Customer Routes
     Route::middleware(['auth:sanctum', 'role:customer'])
         ->prefix('customer')
         ->group(function () {
-            Route::apiResource('bookings', BookingController::class)->only(['index', 'store', 'show', 'destroy']);
+            Route::apiResource('bookings', BookingController::class)->only(['index', 'store', 'show']);
+
+            Route::patch('bookings/{booking}/cancel', [BookingController::class, 'cancel']);
+
+            Route::post('bookings/{booking}/review', [ReviewController::class, 'store']);
+            Route::put('reviews/{review}', [ReviewController::class, 'update']);
         });
 });

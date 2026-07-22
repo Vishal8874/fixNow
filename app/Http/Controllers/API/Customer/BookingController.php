@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API\Customer;
 
 use App\Http\Controllers\API\BaseApiController;
+use App\Http\Requests\CancelBookingRequest;
 use App\Http\Requests\StoreBookingRequest;
 use App\Services\BookingService;
 use App\Models\Booking;
@@ -32,10 +33,10 @@ class BookingController extends BaseApiController
         return $this->successResponse($booking, 'Booking details fetched successfully.');
     }
 
-    // public function destroy(Booking $booking)
-    // {
-    //     $booking = $this->bookingService->cancelBooking(auth()->id(), $booking);
+    public function cancel(CancelBookingRequest $request, Booking $booking)
+    {
+        $booking = $this->bookingService->cancelBooking(auth()->user(), $booking, $request->validated());
 
-    //     return $this->successResponse($booking, 'Booking cancelled successfully.');
-    // }
+        return $this->successResponse($booking, 'Booking cancelled successfully.');
+    }
 }

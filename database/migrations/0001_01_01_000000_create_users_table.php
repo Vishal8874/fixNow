@@ -26,6 +26,8 @@ return new class extends Migration {
 
             $table->string('status')->default('active');
 
+            $table->string('admin_remark')->nullable();
+
             $table->timestamp('email_verified_at')->nullable();
 
             $table->rememberToken();

@@ -11,44 +11,86 @@ use Illuminate\Validation\ValidationException;
 
 class BookingService
 {
+    /**
+     * Create Booking
+     */
     public function create(User $customer, array $data): Booking
     {
         return DB::transaction(function () use ($customer, $data) {
-            //Fetch Provider Service
 
-            $providerService = ProviderService::with('providerProfile')->findOrFail($data['provider_service_id']);
+            /*
+            |--------------------------------------------------------------------------
+            | Fetch Provider Service
+            |--------------------------------------------------------------------------
+            */
 
-            //Validate Service Area
+            $providerService = ProviderService::with([
+                'providerProfile.user',
+            ])->findOrFail($data['provider_service_id']);
 
-            $serviceArea = $providerService->providerProfile->serviceAreas()->find($data['service_area_id']);
+            /*
+            |--------------------------------------------------------------------------
+            | Validate Service Area
+            |--------------------------------------------------------------------------
+            */
+
+            $serviceArea = $providerService->providerProfile
+                ->serviceAreas()
+                ->find($data['service_area_id']);
 
             if (!$serviceArea) {
                 throw ValidationException::withMessages([
-                    'service_area_id' => ['The selected service area is invalid.'],
+                    'service_area_id' => [
+                        'The selected service area is invalid.',
+                    ],
                 ]);
             }
 
-            //Check Active Booking
+            /*
+            |--------------------------------------------------------------------------
+            | Provider Must Be Active
+            |--------------------------------------------------------------------------
+            */
+
+            if ($providerService->providerProfile->user->status !== \App\Enums\UserStatus::ACTIVE) {
+                throw ValidationException::withMessages([
+                    'provider' => [
+                        'This provider is currently unavailable.',
+                    ],
+                ]);
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Existing Active Booking
+            |--------------------------------------------------------------------------
+            */
 
             $existingBooking = Booking::where('customer_id', $customer->id)
                 ->where('provider_service_id', $providerService->id)
-                ->whereIn('status', [BookingStatus::PENDING, BookingStatus::ACCEPTED])
-                ->first();
+                ->whereIn('status', [
+                    BookingStatus::PENDING,
+                    BookingStatus::ACCEPTED,
+                ])
+                ->exists();
 
             if ($existingBooking) {
                 throw ValidationException::withMessages([
-                    'booking' => ['You already have an active booking for this service. Please wait until it is completed or cancelled before booking it again.'],
+                    'booking' => [
+                        'You already have an active booking for this service. Please wait until it is completed or cancelled before booking it again.',
+                    ],
                 ]);
             }
 
-            //Generate Booking Number
+            /*
+            |--------------------------------------------------------------------------
+            | Create Booking
+            |--------------------------------------------------------------------------
+            */
 
-            $bookingNumber = $this->generateBookingNumber();
+            $booking = Booking::create([
 
-            //Create Booking
-
-            return Booking::create([
-                'booking_number' => $bookingNumber,
+                'booking_number' => $this->generateBookingNumber(),
 
                 'customer_id' => $customer->id,
 
@@ -80,94 +122,120 @@ class BookingService
 
                 'status' => BookingStatus::PENDING,
             ]);
+
+            return $this->refreshBooking($booking);
         });
     }
 
+    /**
+     * Generate Booking Number
+     */
     private function generateBookingNumber(): string
     {
         return 'FN-' . now()->format('YmdHis') . rand(1000, 9999);
     }
 
-    //Get Customer Bookings
+    /**
+     * Customer Booking List
+     */
     public function getCustomerBookings(int $customerId)
     {
-        return Booking::with(['providerProfile.user', 'providerService.category', 'serviceArea'])
+        return Booking::with([
+            'providerProfile.user',
+            'providerService.category',
+            'serviceArea',
+        ])
             ->where('customer_id', $customerId)
             ->latest()
             ->paginate(10);
     }
 
-    //Get Booking Details
+    /**
+     * Customer Booking Details
+     */
     public function getBookingDetails(int $customerId, Booking $booking): Booking
     {
-        if ($booking->customer_id !== $customerId) {
+        $this->ensureCustomerOwnsBookingById($customerId, $booking);
+
+        return $this->refreshBooking($booking);
+    }
+
+    /**
+     * Cancel Booking
+     */
+    public function cancelBooking(
+        User $customer,
+        Booking $booking,
+        array $data
+    ): Booking {
+
+        $this->ensureCustomerOwnsBooking($customer, $booking);
+
+        if (!in_array($booking->status, [
+            BookingStatus::PENDING,
+            BookingStatus::ACCEPTED,
+        ])) {
             throw ValidationException::withMessages([
-                'booking' => ['Booking not found.'],
+                'booking' => [
+                    'Only pending or accepted bookings can be cancelled.',
+                ],
             ]);
         }
 
-        return $booking->load(['providerProfile.user', 'providerService.category', 'serviceArea']);
+        $booking->update([
+            'status' => BookingStatus::CANCELLED,
+            'cancel_reason' => $data['cancel_reason'],
+        ]);
+
+        return $this->refreshBooking($booking);
     }
 
-    //cancel Booking
-    // public function cancelBooking(int $customerId, Booking $booking): Booking
-    // {
-    //     if ($booking->customer_id !== $customerId) {
-    //         throw ValidationException::withMessages([
-    //             'booking' => ['Booking not found.'],
-    //         ]);
-    //     }
-
-    //     if (!in_array($booking->status, [BookingStatus::PENDING, BookingStatus::ACCEPTED])) {
-    //         throw ValidationException::withMessages([
-    //             'booking' => ['This booking cannot be cancelled.'],
-    //         ]);
-    //     }
-
-    //     $booking->update([
-    //         'status' => BookingStatus::CANCELLED,
-    //         'cancel_reason' => 'Cancelled by customer',
-    //     ]);
-
-    //     return $booking;
-    // }
-
-    //Povider services
+    /**
+     * Provider Booking List
+     */
     public function getProviderBookings(User $provider)
     {
-        return Booking::with(['customer', 'providerService.category', 'serviceArea'])
-            ->where('provider_profile_id', $provider->providerProfile->id)
+        return Booking::with([
+            'customer',
+            'providerService.category',
+            'serviceArea',
+        ])
+            ->where(
+                'provider_profile_id',
+                $provider->providerProfile->id
+            )
             ->latest()
             ->paginate(10);
     }
 
-    public function getProviderBookingDetails(User $provider, Booking $booking): Booking
-    {
-        if ($booking->provider_profile_id != $provider->providerProfile->id) {
-            throw ValidationException::withMessages([
-                'booking' => ['Booking not found.'],
-            ]);
-        }
+    /**
+     * Provider Booking Details
+     */
+    public function getProviderBookingDetails(
+        User $provider,
+        Booking $booking
+    ): Booking {
 
-        return $booking->load(['customer', 'providerService.category', 'serviceArea']);
+        $this->ensureProviderOwnsBooking($provider, $booking);
+
+        return $this->refreshBooking($booking);
     }
 
-    private function ensureProviderOwnsBooking(User $provider, Booking $booking): void
-    {
-        if (!$provider->providerProfile || $booking->provider_profile_id != $provider->providerProfile->id) {
-            throw ValidationException::withMessages([
-                'booking' => ['Booking not found.'],
-            ]);
-        }
-    }
+    /**
+     * Accept Booking
+     */
+    public function acceptBooking(
+        User $provider,
+        Booking $booking
+    ): Booking {
 
-    public function acceptBooking(User $provider, Booking $booking): Booking
-    {
         $this->ensureProviderOwnsBooking($provider, $booking);
 
         if ($booking->status !== BookingStatus::PENDING) {
             throw ValidationException::withMessages([
-                'booking' => ['Only pending bookings can be accepted.'],
+                'booking' => [
+                    'Only pending bookings can be accepted.',
+                ],
             ]);
         }
 
@@ -175,16 +243,25 @@ class BookingService
             'status' => BookingStatus::ACCEPTED,
         ]);
 
-        return $booking->fresh(['customer', 'providerService.category', 'serviceArea']);
+        return $this->refreshBooking($booking);
     }
 
-    public function rejectBooking(User $provider, Booking $booking, array $data): Booking
-    {
+    /**
+     * Reject Booking
+     */
+    public function rejectBooking(
+        User $provider,
+        Booking $booking,
+        array $data
+    ): Booking {
+
         $this->ensureProviderOwnsBooking($provider, $booking);
 
         if ($booking->status !== BookingStatus::PENDING) {
             throw ValidationException::withMessages([
-                'booking' => ['Only pending bookings can be rejected.'],
+                'booking' => [
+                    'Only pending bookings can be rejected.',
+                ],
             ]);
         }
 
@@ -193,16 +270,25 @@ class BookingService
             'reject_reason' => $data['reject_reason'],
         ]);
 
-        return $booking->fresh(['customer', 'providerService.category', 'serviceArea']);
+        return $this->refreshBooking($booking);
     }
 
-    public function completeBooking(User $provider, Booking $booking, array $data): Booking
-    {
+    /**
+     * Complete Booking
+     */
+    public function completeBooking(
+        User $provider,
+        Booking $booking,
+        array $data
+    ): Booking {
+
         $this->ensureProviderOwnsBooking($provider, $booking);
 
         if ($booking->status !== BookingStatus::ACCEPTED) {
             throw ValidationException::withMessages([
-                'booking' => ['Only accepted bookings can be completed.'],
+                'booking' => [
+                    'Only accepted bookings can be completed.',
+                ],
             ]);
         }
 
@@ -212,6 +298,75 @@ class BookingService
             'completed_at' => now(),
         ]);
 
-        return $booking->fresh(['customer', 'providerService.category', 'serviceArea']);
+        return $this->refreshBooking($booking);
+    }
+
+    /**
+     * Ensure Customer Owns Booking
+     */
+    private function ensureCustomerOwnsBooking(
+        User $customer,
+        Booking $booking
+    ): void {
+
+        if ($booking->customer_id !== $customer->id) {
+            throw ValidationException::withMessages([
+                'booking' => [
+                    'Booking not found.',
+                ],
+            ]);
+        }
+    }
+
+    /**
+     * Ensure Customer Owns Booking (By Id)
+     */
+    private function ensureCustomerOwnsBookingById(
+        int $customerId,
+        Booking $booking
+    ): void {
+
+        if ($booking->customer_id !== $customerId) {
+            throw ValidationException::withMessages([
+                'booking' => [
+                    'Booking not found.',
+                ],
+            ]);
+        }
+    }
+
+    /**
+     * Ensure Provider Owns Booking
+     */
+    private function ensureProviderOwnsBooking(
+        User $provider,
+        Booking $booking
+    ): void {
+
+        if (
+            !$provider->providerProfile ||
+            $booking->provider_profile_id != $provider->providerProfile->id
+        ) {
+            throw ValidationException::withMessages([
+                'booking' => [
+                    'Booking not found.',
+                ],
+            ]);
+        }
+    }
+
+    /**
+     * Refresh Booking
+     */
+    private function refreshBooking(
+        Booking $booking
+    ): Booking {
+
+        return $booking->fresh([
+            'customer',
+            'providerProfile.user',
+            'providerService.category',
+            'serviceArea',
+        ]);
     }
 }
